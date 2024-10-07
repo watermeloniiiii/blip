@@ -1,0 +1,71 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "BLIP Training",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "torch.distributed.launch",
+            "console": "integratedTerminal",
+            "viewOutput": false,
+            "args": [
+                "--nproc_per_node",
+                "1",
+                "--rdzv-backend",
+                "c10d",
+                "--rdzv-endpoint",
+                "localhost:0",
+                "./pretrain.py",
+                "--distributed",
+                "False",
+            ]
+        },
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "DINOv2 inference single node",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/NAS6/Members/linchenxi/dinov2/dinov2/eval/segmentation.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--config-file",
+                "/NAS6/Members/linchenxi/projects/DINOV2/model8/config.yaml",
+                "--pretrained-weights",
+                "/NAS6/Members/linchenxi/projects/DINOV2/model8/eval/training_24999/teacher_checkpoint.pth",
+                "--train-dataset",
+                "SengmentationSentinel2:split=TRAIN:root=/NAS6/Members/linchenxi/projects/RS_foundation_model/satlas/:extra=/NAS6/Members/linchenxi/ILSVRC",
+                "--val-dataset",
+                "SengmentationSentinel2:split=TEST:root=/NAS6/Members/linchenxi/projects/RS_foundation_model/satlas/:extra=/NAS6/Members/linchenxi/ILSVRC"
+            ]
+        },
+        {
+            "name": "DINOv2 inference multiple node",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "torch.distributed.launch",
+            "console": "integratedTerminal",
+            "args": [
+                "--nproc_per_node",
+                "1",
+                "/NAS6/Members/linchenxi/dinov2/dinov2/eval/knn.py",
+                "--config-file",
+                "/NAS6/Members/linchenxi/projects/DINOV2/model8/config.yaml",
+                "--pretrained-weights",
+                "/NAS6/Members/linchenxi/projects/DINOV2/model8/eval/training_24999/teacher_checkpoint.pth",
+                "--train-dataset",
+                "ClusterSentinel2:split=TEST:root=/NAS6/Members/linchenxi/projects/RS_foundation_model/satlas/clusters:extra=/NAS6/Members/linchenxi/ILSVRC",
+                "--val-dataset",
+                "ClusterSentinel2:split=TEST:root=/NAS6/Members/linchenxi/projects/RS_foundation_model/satlas/clusters:extra=/NAS6/Members/linchenxi/ILSVRC"
+            ],
+        },
+    ]
+}
