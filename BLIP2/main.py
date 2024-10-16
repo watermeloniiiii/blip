@@ -42,7 +42,7 @@ def main(args, config):
 
     blip2_trainer = Trainer(model)
     blip2_trainer.train_model(
-        epoch=config.max_epoch,
+        config=config,
         train_loader=train_loader,
         vali_loader=vali_loader,
         accelerator=accelerator,
