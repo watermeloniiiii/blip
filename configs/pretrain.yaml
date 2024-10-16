@@ -1,6 +1,7 @@
-train_file: ['./annotation/coco_karpathy_train.json',
+train_file: ['/media/workspace/linchenxi/projects/blip/coco_karpathy_train.json',
             #  './annotation/vg_caption.json',
              ]
+data_root: '/media/workspace/linchenxi/projects/blip/'
 laion_path: ''   
 
 # size of vit model; base or large

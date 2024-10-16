@@ -133,6 +133,6 @@ class coco_karpathy_retrieval_eval(Dataset):
 
 if __name__ == "__main__":
     # dataet = coco_karpathy_train(ann_root="/NAS6/Members/linchenxi/BLIP/coco_karpathy")
-    url = "https://storage.googleapis.com/sfr-vision-language-research/datasets/coco_karpathy_train.json"
+    url = "https://storage.googleapis.com/sfr-vision-language-research/datasets/coco_karpathy_test.json"
     ann_root = "./annotation"
     download_url(url, ann_root)
