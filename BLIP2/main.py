@@ -5,7 +5,8 @@ from accelerate import DistributedDataParallelKwargs
 from accelerate import Accelerator
 from transformers import AutoProcessor, Blip2ForConditionalGeneration
 import torch
-from data import create_dataset, create_sampler, create_loader
+from torch.utils.data import DataLoader
+from BLIP2.dataset import coco_karpathy
 from omegaconf import OmegaConf
 from pathlib import Path
 import utils
@@ -26,31 +27,33 @@ def main(args, config):
         gradient_accumulation_steps=1,
         project_dir="blip2_pretrain",
     )
-    datasets = [create_dataset("pretrain", config, min_scale=0.2)]
-    print("number of training samples: %d" % len(datasets[0]))
-
+    train_data = coco_karpathy(config.PATH.data_root, coco_karpathy.Split["TRAIN"])
+    vali_data = coco_karpathy(config.PATH.data_root, coco_karpathy.Split["VAL"])
     num_tasks = utils.get_world_size()
     global_rank = utils.get_rank()
-    samplers = create_sampler(datasets, [True], num_tasks, global_rank)
 
-    data_loader = create_loader(
-        datasets,
-        samplers,
-        batch_size=[config.batch_size],
-        num_workers=[4],
-        is_trains=[True],
-        collate_fns=[None],
-    )[0]
+    train_loader = DataLoader(
+        train_data, batch_size=config.MODEL.optimization.batch_size, drop_last=True
+    )
+
+    vali_loader = DataLoader(
+        vali_data, batch_size=config.MODEL.optimization.batch_size, drop_last=True
+    )
 
     blip2_trainer = Trainer(model)
-    blip2_trainer.train_model(epoch=config.max_epoch, train_loader=data_loader)
+    blip2_trainer.train_model(
+        epoch=config.max_epoch,
+        train_loader=train_loader,
+        vali_loader=vali_loader,
+        accelerator=accelerator,
+    )
 
 
 if __name__ == "__main__":
     import argparse
-
+    print ("hahah")
     parser = argparse.ArgumentParser()
-    parser.add_argument("--blip_config", default="./configs/pretrain.yaml")
+    parser.add_argument("--blip_config", default="./BLIP2/pretrain.yaml")
     args = parser.parse_args()
 
     # config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)

@@ -382,12 +382,12 @@ class Trainer(object):
         self.login = False
 
         self.accelerator.init_trackers(
-            project_name=f"DINOv2_downstreams",
+            project_name=f"blip2_pretrain",
             config=dict(config),
             init_kwargs={
                 "wandb": {
                     "entity": "chenxilin",
-                    "name": config.MODEL_INFO.model_name,
+                    "name": "test",
                 }
             },
         )

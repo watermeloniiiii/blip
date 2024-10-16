@@ -11,10 +11,9 @@
             "justMyCode": false,
             "console": "integratedTerminal",
             "module": "accelerate.commands.launch",
-            "env": {
-                "CUDA_LAUNCH_BLOCKING": "1"
-            },
             "args": [
+                "--nproc_per_node",
+                "1",
                 "--config_file",
                 "/NAS6/Members/linchenxi/BLIP/configs/accelerate_config.yaml",
                 "BLIP2/main.py",
@@ -26,7 +25,6 @@
             "request": "launch",
             "module": "torch.distributed.launch",
             "console": "integratedTerminal",
-            "viewOutput": false,
             "args": [
                 "--nproc_per_node",
                 "1",
