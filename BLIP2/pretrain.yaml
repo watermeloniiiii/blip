@@ -5,11 +5,11 @@ PATH:
   train_file: '/media/workspace/linchenxi/projects/blip/coco_karpathy_train.json'
   val_file: '/media/workspace/linchenxi/projects/blip/coco_karpathy_val.json'
   data_root: '/media/workspace/linchenxi/projects/blip/'
-  model_dir: "/NAS3/Members/linchenxi/blip/model"
-MODEl:
+  model_outdir: "/NAS3/Members/linchenxi/projects/blip/model"
+MODEL:
   optimization:
       image_size: 224
-      batch_size: 75
+      batch_size: 20
       queue_size: 57600
       alpha: 0.4
       optimizer: "AdamW"
@@ -19,7 +19,7 @@ MODEl:
       epoch: 20
       total_steps_ratio: 0.2
       warmup_steps_ratio: 0.01
-      num_train_samples: 2000
+      num_train_samples: 10000
       num_vali_samples: 1000
 
 

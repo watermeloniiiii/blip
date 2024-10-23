@@ -1,0 +1,12 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+lightning_logs/
+__pycache__/
+wandb/
+configs/
+.venv/
+fmow_sentinel/
+attention_maps/
+logs/
+slurm*

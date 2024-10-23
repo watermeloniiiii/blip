@@ -47,7 +47,9 @@ class _Split(Enum):
 class coco_karpathy(Dataset):
     Split = Union[_Split]
 
-    def __init__(self, root, split: "coco_karpathy.Split", transforms=None) -> None:
+    def __init__(
+        self, root, split: "coco_karpathy.Split", transforms=None, processor=None
+    ) -> None:
         super().__init__()
         if isinstance(root, str):
             root = os.path.expanduser(root)
@@ -58,6 +60,8 @@ class coco_karpathy(Dataset):
             self.file_lst = json.load(file)
         if transforms:
             self.transforms = transforms
+        if processor:
+            self.processor = processor
         self._split = split
 
     def __len__(self):
@@ -66,13 +70,23 @@ class coco_karpathy(Dataset):
     def __getitem__(self, index):
         caption = self.file_lst[index]["caption"]
         image_dir = self.file_lst[index]["image"]
-        image_id = self.file_lst[index]["image_id"]
-        img = np.array(Image.open(image_dir))[..., None]
-        if self.transforms:
-            img = self.transforms(img)
-        return dict(image=img, caption=caption, id=image_id)
+        if self._split.value == "train":
+            image_id = self.file_lst[index]["image_id"]
+        image_dir = os.path.join(self.root, image_dir)
+        img = Image.open(image_dir).convert("RGB")
+        encoding = self.processor(
+            img,
+            text=caption,
+            padding="max_length",
+            truncation=True,
+            max_length=30,
+            return_tensors="pt",
+        )
+        encoding = {k: v.squeeze() for k, v in encoding.items()}
+        encoding["caption"] = caption
+        return encoding
 
 
 dataset = coco_karpathy(
-    "/media/workspace/linchenxi/projects/blip", coco_karpathy.Split["TRAIN"]
+    "/media/workspace/linchenxi/projects/blip", coco_karpathy.Split["VAL"]
 )

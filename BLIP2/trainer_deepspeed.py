@@ -26,6 +26,7 @@ from torch.utils.data import DataLoader
 import warnings
 
 from base_trainer import Trainer
+from torchmetrics.text import BLEUScore
 
 warnings.filterwarnings("ignore")
 
@@ -36,9 +37,11 @@ IMAGE_PROCESSOR = {
     "mask2former": Mask2FormerImageProcessor(),
 }
 
+
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
         return param_group["lr"]
+
 
 def collate_fn(data):
     for i in range(0, len(data)):
@@ -60,20 +63,14 @@ def make_cuda_list(data: List):
 
 
 class blip2_trainer(Trainer):
-    def __init__(self, net, config) -> None:
-        super().__init__(self, net, config)
-        
-    def process_model(self, net, inputs, input_values, tensor_type):
-        image = input_values[inputs.index("image")].type(tensor_type)
-        label = input_values[inputs.index("label")].squeeze()
-        date = input_values[inputs.index("date")].squeeze()
-        outputs = net(image, label, date)
-        return outputs.loss, outputs
+    def __init__(self, net, config, processor) -> None:
+        super().__init__(net, config)
+        self.processor = processor
 
     def training(self, epoch):
         self.net.train()
         total_sample_met = 0
-        for idx, sample in enumerate(self.train_loader, 0):
+        for idx, batch in enumerate(self.train_loader, 0):
             total_sample_met += (
                 self.train_loader.batch_sampler.batch_size * self.num_processes
             )
@@ -95,15 +92,13 @@ class blip2_trainer(Trainer):
                     ----- sample_total: {total_sample_met}"
                 )
                 self.optimizer.zero_grad()
-                inputs, input_values = zip(*sample.items())
-                tensor_type = (
-                    torch.cuda.FloatTensor
-                    if self.accelerator.device.type == "cuda"
-                    else torch.FloatTensor
+                input_ids = batch.pop("input_ids")
+                pixel_values = batch.pop("pixel_values")
+
+                outputs = self.net(
+                    input_ids=input_ids, pixel_values=pixel_values, labels=input_ids
                 )
-                loss, _ = self.process_model(
-                    self.net, inputs, input_values, tensor_type
-                )
+                loss = outputs.loss
                 gathered_loss = self.accelerator.gather_for_metrics(loss)
                 self.train_loss[epoch] += torch.mean(gathered_loss)
                 self.accelerator.backward(loss)
@@ -121,8 +116,9 @@ class blip2_trainer(Trainer):
     def evaluation(self, epoch):
         self.net.eval()
         total_sample_met = 0
+        metric = BLEUScore().cuda()
         with torch.no_grad():
-            for idx, sample in enumerate(self.vali_loader, 0):
+            for idx, batch in enumerate(self.vali_loader, 0):
                 total_sample_met += (
                     self.train_loader.batch_sampler.batch_size * self.num_processes
                 )
@@ -134,49 +130,40 @@ class blip2_trainer(Trainer):
                     ----- sample_process: {self.train_loader.batch_sampler.batch_size * (self.accelerator.local_process_index + 1)}/{self.train_loader.batch_sampler.batch_size * self.num_processes} \
                     ----- sample_total: {total_sample_met}"
                 )
-                inputs, input_values = zip(*sample.items())
-                tensor_type = (
-                    torch.cuda.FloatTensor
-                    if self.accelerator.device.type == "cuda"
-                    else torch.FloatTensor
-                )
-                loss, outputs = self.process_model(
-                    self.net, inputs, input_values, tensor_type
-                )
-                outputs = SegformerImageProcessor().post_process_semantic_segmentation(
-                    outputs=outputs,
-                    target_sizes=[
-                        (
-                            config.MODEL.optimization.img_size,
-                            config.MODEL.optimization.img_size,
-                        )
-                    ]
-                    * input_values[0].shape[0],
-                )  # B, C, H, W
-                prediction = torch.stack(outputs, dim=0)
-                # prediction = (torch.nn.functional.sigmoid(outputs) > 0.5).to(torch.long)
-                labels = input_values[inputs.index("label")]
-                gathered_metrics = self.accelerator.gather_for_metrics(
-                    (IOU, Prec, Rec, F1)
-                )
-                for m_idx, m in enumerate(["IOU", "Precision", "Recall", "F1"]):
-                    self.metric[m][epoch] += torch.mean(gathered_metrics[m_idx])
+                input_ids = batch.pop("input_ids")
+                pixel_values = batch.pop("pixel_values")
 
-            gathered_loss = self.accelerator.gather_for_metrics(loss)
-            self.vali_loss[epoch] += torch.mean(gathered_loss)
-            cur_loss = self.vali_loss[epoch]
+                loss = 0
+                for i_ref_cap in range(input_ids.shape[1]):
+                    outputs = self.net(
+                        input_ids=input_ids[:, i_ref_cap],
+                        pixel_values=pixel_values,
+                        labels=input_ids[:, i_ref_cap],
+                    )
+
+                    loss += outputs.loss
+                gathered_loss = self.accelerator.gather_for_metrics(loss)
+                self.vali_loss[epoch] += torch.mean(gathered_loss)
+                cur_loss = self.vali_loss[epoch]
+                generated_ids = self.net.generate(
+                    pixel_values=pixel_values, max_length=50
+                )
+                generated_caption = self.processor.batch_decode(
+                    generated_ids, skip_special_tokens=True
+                )
+                preds = generated_caption
+                target = batch.pop("caption")
+                BLEU_score = metric(preds, target)
+                gathered_metrics = self.accelerator.gather_for_metrics((BLEU_score))
+            self.metric["BLEU"][epoch] += torch.mean(gathered_metrics)
 
             if self.accelerator.is_local_main_process:
                 self.accelerator.log(
                     {
                         "vali_loss": self.vali_loss[epoch].item()
                         / len(self.vali_loader),
-                        "iou": self.metric["IOU"][epoch].item() / len(self.vali_loader),
-                        "precision": self.metric["Precision"][epoch].item()
+                        "BLEU_score": self.metric["BLEU"][epoch].item()
                         / len(self.vali_loader),
-                        "recall": self.metric["Recall"][epoch].item()
-                        / len(self.vali_loader),
-                        "f1": self.metric["F1"][epoch].item() / len(self.vali_loader),
                     },
                     step=self.cur_step,
                 )
@@ -204,7 +191,7 @@ class blip2_trainer(Trainer):
         """
         The main function to execute model training
         """
-        self.epoch = self.config.optimization.epoch
+        self.epoch = self.config.MODEL.optimization.epoch
         self.train_loader = train_loader
         self.vali_loader = vali_loader
         self.gpu_id = gpu_id
